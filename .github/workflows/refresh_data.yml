@@ -1,0 +1,162 @@
+name: Refresh GeoJSON Data
+
+on:
+  workflow_dispatch:        # Manual trigger only — scheduled cron disabled
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests shapely
+
+      # Load Capacity is a vector tileset, not a plain fetch — it needs
+      # tippecanoe to tile the raw GeoJSON into public/tiles/load_capacity.pmtiles.
+      # Cached by OS so most monthly runs skip the ~2min build.
+      - name: Cache tippecanoe binary
+        id: cache-tippecanoe
+        uses: actions/cache@v4
+        with:
+          path: tippecanoe-bin
+          key: tippecanoe-${{ runner.os }}-v1
+
+      - name: Build tippecanoe
+        if: steps.cache-tippecanoe.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update && sudo apt-get install -y build-essential libsqlite3-dev zlib1g-dev
+          git clone --depth 1 https://github.com/felt/tippecanoe.git /tmp/tippecanoe
+          make -C /tmp/tippecanoe -j"$(nproc)"
+          mkdir -p tippecanoe-bin
+          cp /tmp/tippecanoe/tippecanoe tippecanoe-bin/
+
+      # Each fetch step is isolated with continue-on-error: if one upstream
+      # source is down or changes shape, the others still run and whatever
+      # they wrote still gets committed below. A script should only ever
+      # overwrite its target file after a fully successful fetch, so a
+      # failed run leaves the last-known-good public/data/*.geojson and
+      # public/tiles/*.pmtiles untouched.
+      # LDC territories are only ~25 features but dense enough polygons to
+      # come to 4.93MB as plain GeoJSON — tiled (like Load Capacity and
+      # Parking Lots below) rather than baked to public/data, both for the
+      # ~9.7x size win and because --clip-bounding-box gives an exact GGH
+      # bbox clip for free (the fetch script's own spatial filter only
+      # guarantees each feature *intersects* the bbox, not that it's clipped
+      # to it).
+      - name: Fetch + tile LDC Territories (CCIM)
+        id: fetch_ccim
+        continue-on-error: true
+        run: |
+          python scripts/fetch_ccim.py
+          ./tippecanoe-bin/tippecanoe -f -o public/tiles/ldc_territories.pmtiles \
+            -l ldc_territories -zg --clip-bounding-box=-80.5,43.0,-78.0,45.0 \
+            build/ldc_territories_raw.geojson
+
+      # Reads scripts/data/census_dwellings_by_fsa.csv (committed — built once
+      # from the ~645MB raw StatsCan file by extract_census_dwellings.py,
+      # which is NOT run here) and joins it against CFSA boundaries + all
+      # historical Ontario MTO EV-by-FSA quarters. Also carries median
+      # household income from that same census extract, so this one script
+      # covers 4 Area Overview layers (EV adoption %, total EVs, housing %,
+      # household income). MTO releases quarterly; running this monthly is
+      # harmless, same reasoning as CCIM above.
+      #
+      # Tiled for the same reasons as LDC territories above (~11x smaller,
+      # exact bbox clip). tippecanoe stringifies the nested ev_by_quarter
+      # property (used by the popup sparkline) into a JSON string —
+      # evAdoptionPopup.ts's parseSeries() already handles that via a
+      # JSON.parse fallback, verified against a real decoded tile before
+      # this change.
+      - name: Fetch + tile EV Adoption + Household Income (FSA)
+        id: fetch_ev_adoption
+        continue-on-error: true
+        run: |
+          python scripts/fetch_ev_adoption.py
+          ./tippecanoe-bin/tippecanoe -f -o public/tiles/ev_adoption.pmtiles \
+            -l ev_adoption -zg --clip-bounding-box=-80.5,43.0,-78.0,45.0 \
+            build/ev_adoption_raw.geojson
+
+      - name: Fetch + tile Load Capacity (CCIM)
+        id: fetch_load_capacity
+        continue-on-error: true
+        run: |
+          python scripts/fetch_load_capacity_raw.py
+          ./tippecanoe-bin/tippecanoe -f -o public/tiles/load_capacity.pmtiles \
+            -l load_capacity -zg --drop-densest-as-needed --extend-zooms-if-still-dropping \
+            build/load_capacity_raw.geojson
+
+      # Powers the "Custom" Area Overview option: the full geometric
+      # intersection of feeder polygons (Load Capacity) and FSA polygons (EV
+      # Adoption/Income), so Custom's sliders can filter on both datasets'
+      # properties via one plain property filter, with no client-side overlay
+      # math. See scripts/build_custom_overlay.py for the full rationale.
+      # Depends on BOTH raw build files above already existing in this same
+      # job — if either of those steps failed, this one fails too (its own
+      # continue-on-error keeps that isolated, same as every other step here).
+      - name: Build + tile Custom Overlay (Load Capacity x EV Adoption)
+        id: build_custom_overlay
+        continue-on-error: true
+        run: |
+          python scripts/build_custom_overlay.py
+          ./tippecanoe-bin/tippecanoe -f -o public/tiles/custom_overlay.pmtiles \
+            -l custom_overlay -zg --drop-densest-as-needed --extend-zooms-if-still-dropping \
+            --clip-bounding-box=-80.5,43.0,-78.0,45.0 \
+            build/custom_overlay_raw.geojson
+
+      # Same reasoning as Load Capacity: ~59k GGH-wide parking polygons is too
+      # big to bake as plain GeoJSON (~26MB raw), so it's tiled too. Used to be
+      # a live per-viewport Overpass query — baking it dropped per-session
+      # load time from "shared public Overpass server" to "static tiles off
+      # our own CDN."
+      - name: Fetch + tile Parking Lots (OSM)
+        id: fetch_parking_lots
+        continue-on-error: true
+        run: |
+          python scripts/fetch_parking_lots_raw.py
+          ./tippecanoe-bin/tippecanoe -f -o public/tiles/parking_lots.pmtiles \
+            -l parking_lots -zg --drop-densest-as-needed --extend-zooms-if-still-dropping \
+            build/parking_lots_raw.geojson
+
+      # EV chargers are NOT refreshed here — the live ArcGIS FeatureServer the
+      # doc originally planned to hit is dead (single null record). Re-run
+      # scripts/extract_ev_chargers.py manually against a fresh NRCan export
+      # when needed, same one-time/manual pattern as the census extraction.
+
+      - name: Fetch gas stations (OSM)
+        id: fetch_osm
+        continue-on-error: true
+        run: python scripts/fetch_osm.py
+
+      - name: Commit updated data
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/data/ public/tiles/
+          git diff --staged --quiet || git commit -m "chore: refresh GeoJSON data $(date -u +%Y-%m-%d)"
+          git push
+
+      # Surfaces a failed run in the Actions tab / notifications so someone
+      # eventually looks at it, but only AFTER the commit step above — a
+      # source failing here never blocks the site or the other sources'
+      # data from shipping, it just means that one layer stays stale.
+      - name: Report any fetch failures
+        if: always()
+        run: |
+          failed=0
+          [ "${{ steps.fetch_ccim.outcome }}" = "failure" ] && echo "::warning::fetch_ccim.py failed — ldc_territories data not refreshed this run" && failed=1
+          [ "${{ steps.fetch_ev_adoption.outcome }}" = "failure" ] && echo "::warning::fetch_ev_adoption.py failed — ev_adoption data not refreshed this run" && failed=1
+          [ "${{ steps.fetch_load_capacity.outcome }}" = "failure" ] && echo "::warning::fetch_load_capacity_raw.py/tippecanoe failed — load_capacity tiles not refreshed this run" && failed=1
+          [ "${{ steps.build_custom_overlay.outcome }}" = "failure" ] && echo "::warning::build_custom_overlay.py/tippecanoe failed — custom_overlay tiles not refreshed this run" && failed=1
+          [ "${{ steps.fetch_parking_lots.outcome }}" = "failure" ] && echo "::warning::fetch_parking_lots_raw.py/tippecanoe failed — parking_lots tiles not refreshed this run" && failed=1
+          [ "${{ steps.fetch_osm.outcome }}" = "failure" ] && echo "::warning::fetch_osm.py failed — gas_stations data not refreshed this run" && failed=1
+          exit $failed

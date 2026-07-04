@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EV Charging Siting Map — GGH</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <aside id="sidebar">
+        <div id="sidebar-content">
+          <h1>GTA EV Charging Map</h1>
+
+          <fieldset>
+            <legend>Area Overview</legend>
+            <label><input type="radio" name="area-overview" value="none" /> None</label>
+            <label><input type="radio" name="area-overview" data-layer-id="load-capacity" checked /> Available Load Capacity (MVA)</label>
+            <label><input type="radio" name="area-overview" data-layer-id="ev-adoption-pct" /> EV Adoption (%)</label>
+            <label><input type="radio" name="area-overview" data-layer-id="ev-adoption-total" /> Total EVs</label>
+            <label><input type="radio" name="area-overview" data-layer-id="ev-adoption-housing" /> Houses &amp; Townhomes (%)</label>
+            <label><input type="radio" name="area-overview" data-layer-id="household-income" /> Household Income ($)</label>
+            <div class="radio-with-filter">
+              <label><input type="radio" name="area-overview" data-layer-id="custom-overlay" /> Custom</label>
+              <button type="button" id="custom-overlay-filter-toggle" class="accordion-toggle" aria-expanded="false" aria-label="Configure Custom filters" disabled>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                  <path d="M2,3 L14,3 L9,9 L9,13 L7,14 L7,9 Z" />
+                </svg>
+              </button>
+            </div>
+            <div class="filter-panel" id="custom-overlay-filter-panel" hidden>
+              <p class="filter-panel-hint">Matching areas are painted orange. Full range = no restriction.</p>
+              <div class="slider-field" data-slider-field="capacity">
+                <div class="slider-field-header">
+                  <label>Load Capacity (MVA)</label>
+                  <span class="slider-value-range"><span data-role="min-label"></span>&ndash;<span data-role="max-label"></span></span>
+                </div>
+                <div class="slider-histogram" data-histogram="capacity"></div>
+                <div class="dual-range">
+                  <div class="dual-range-track"><div class="dual-range-fill"></div></div>
+                  <input type="range" data-role="min" min="0" max="180" step="1" value="0" />
+                  <input type="range" data-role="max" min="0" max="180" step="1" value="180" />
+                </div>
+              </div>
+              <div class="slider-field" data-slider-field="ev_adoption_pct">
+                <div class="slider-field-header">
+                  <label>EV Adoption (%)</label>
+                  <span class="slider-value-range"><span data-role="min-label"></span>&ndash;<span data-role="max-label"></span></span>
+                </div>
+                <div class="slider-histogram" data-histogram="ev_adoption_pct"></div>
+                <div class="dual-range">
+                  <div class="dual-range-track"><div class="dual-range-fill"></div></div>
+                  <input type="range" data-role="min" min="0" max="27" step="0.5" value="0" />
+                  <input type="range" data-role="max" min="0" max="27" step="0.5" value="27" />
+                </div>
+              </div>
+              <div class="slider-field" data-slider-field="total_ev">
+                <div class="slider-field-header">
+                  <label>Total EVs</label>
+                  <span class="slider-value-range"><span data-role="min-label"></span>&ndash;<span data-role="max-label"></span></span>
+                </div>
+                <div class="slider-histogram" data-histogram="total_ev"></div>
+                <div class="dual-range">
+                  <div class="dual-range-track"><div class="dual-range-fill"></div></div>
+                  <input type="range" data-role="min" min="0" max="3400" step="50" value="0" />
+                  <input type="range" data-role="max" min="0" max="3400" step="50" value="3400" />
+                </div>
+              </div>
+              <div class="slider-field" data-slider-field="houses_pct">
+                <div class="slider-field-header">
+                  <label>Houses &amp; Townhomes (%)</label>
+                  <span class="slider-value-range"><span data-role="min-label"></span>&ndash;<span data-role="max-label"></span></span>
+                </div>
+                <div class="slider-histogram" data-histogram="houses_pct"></div>
+                <div class="dual-range">
+                  <div class="dual-range-track"><div class="dual-range-fill"></div></div>
+                  <input type="range" data-role="min" min="0" max="100" step="1" value="0" />
+                  <input type="range" data-role="max" min="0" max="100" step="1" value="100" />
+                </div>
+              </div>
+              <div class="slider-field" data-slider-field="median_income">
+                <div class="slider-field-header">
+                  <label>Household Income ($)</label>
+                  <span class="slider-value-range"><span data-role="min-label"></span>&ndash;<span data-role="max-label"></span></span>
+                </div>
+                <div class="slider-histogram" data-histogram="median_income"></div>
+                <div class="dual-range">
+                  <div class="dual-range-track"><div class="dual-range-fill"></div></div>
+                  <input type="range" data-role="min" min="50000" max="200000" step="1000" value="50000" />
+                  <input type="range" data-role="max" min="50000" max="200000" step="1000" value="200000" />
+                </div>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Infrastructure</legend>
+            <label><input type="checkbox" data-layer-id="ldc-territories" /> LDC Territory Boundaries</label>
+            <div class="checkbox-with-filter">
+              <label><input type="checkbox" data-layer-id="ev-chargers" /> EV Chargers</label>
+              <button type="button" id="ev-charger-filter-toggle" class="accordion-toggle" aria-expanded="false" aria-label="Filter EV chargers" disabled>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                  <path d="M2,3 L14,3 L9,9 L9,13 L7,14 L7,9 Z" />
+                </svg>
+              </button>
+            </div>
+            <div class="filter-panel" id="ev-charger-filter-panel" hidden>
+              <div class="filter-panel-section">
+                <h5>Charger Type</h5>
+                <label><input type="checkbox" data-charger-type="l2" /> L2</label>
+                <label><input type="checkbox" data-charger-type="dcfc" /> DCFC</label>
+              </div>
+              <div class="filter-panel-section">
+                <h5>Network</h5>
+                <div id="network-filter-options"></div>
+              </div>
+            </div>
+            <label><input type="checkbox" data-layer-id="gas-stations" /> Gas Stations</label>
+            <label><input type="checkbox" data-layer-id="parking-lots" /> Parking Lots</label>
+          </fieldset>
+
+          <div class="sidebar-attribution">
+            <h5>Data Sources</h5>
+            <ul>
+              <li><a href="https://www150.statcan.gc.ca/n1/en/catalogue/98-401-X2021013" target="_blank" rel="noopener">Statistics Canada</a></li>
+              <li><a href="https://gis.planview.ca" target="_blank" rel="noopener">Ontario Energy Board</a></li>
+              <li><a href="https://data.ontario.ca/dataset/electric-vehicles-in-ontario-by-forward-sortation-area" target="_blank" rel="noopener">Ontario Ministry of Transportation</a></li>
+              <li><a href="https://natural-resources.canada.ca/energy-efficiency/transportation-energy-efficiency/electric-charging-alternative-fuelling-stationslocator-map" target="_blank" rel="noopener">Natural Resources Canada</a></li>
+              <li><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</li>
+              <li><a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a></li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+      <button id="sidebar-toggle" aria-label="Collapse sidebar">‹</button>
+      <div id="map"></div>
+      <div id="map-legend">
+        <div class="legend-block" id="legend-load-capacity">
+          <h4 class="legend-title">Available Load Capacity (MVA)</h4>
+          <ul class="legend">
+            <li><span class="legend-swatch" style="background:#1f7a3d"></span>10+ MVA</li>
+            <li><span class="legend-swatch" style="background:#8ba33e"></span>5–10 MVA</li>
+            <li><span class="legend-swatch" style="background:#c7a832"></span>1–5 MVA</li>
+            <li><span class="legend-swatch" style="background:#b8433f"></span>0–1 MVA</li>
+          </ul>
+        </div>
+        <div class="legend-block" id="legend-ev-adoption-pct">
+          <h4 class="legend-title">EV Adoption (%)</h4>
+          <div class="legend-gradient">
+            <div class="legend-gradient-bar" style="background: linear-gradient(to right, #d4edd9, #9ecca8, #5fa66e, #327a45, #14431f)"></div>
+            <div class="legend-gradient-labels"><span>0%</span><span>20%+</span></div>
+          </div>
+        </div>
+        <div class="legend-block" id="legend-ev-adoption-total">
+          <h4 class="legend-title">Total EVs</h4>
+          <div class="legend-gradient">
+            <div class="legend-gradient-bar" style="background: linear-gradient(to right, #d4edd9, #9ecca8, #5fa66e, #327a45, #14431f)"></div>
+            <div class="legend-gradient-labels"><span>0</span><span>3.4k</span></div>
+          </div>
+        </div>
+        <div class="legend-block" id="legend-ev-adoption-housing">
+          <h4 class="legend-title">Houses &amp; Townhomes (%)</h4>
+          <div class="legend-gradient">
+            <div class="legend-gradient-bar" style="background: linear-gradient(to right, #d4edd9, #9ecca8, #5fa66e, #327a45, #14431f)"></div>
+            <div class="legend-gradient-labels"><span>0%</span><span>100%</span></div>
+          </div>
+        </div>
+        <div class="legend-block" id="legend-household-income">
+          <h4 class="legend-title">Household Income ($)</h4>
+          <div class="legend-gradient">
+            <div class="legend-gradient-bar" style="background: linear-gradient(to right, #d4edd9, #9ecca8, #5fa66e, #327a45, #14431f)"></div>
+            <div class="legend-gradient-labels"><span>$50k</span><span>$200k+</span></div>
+          </div>
+        </div>
+        <div class="legend-block" id="legend-custom-overlay">
+          <h4 class="legend-title">Custom</h4>
+          <ul class="legend"><li><span class="legend-swatch" style="background:#dd6b20"></span>Valid site</li></ul>
+        </div>
+        <div class="legend-block" id="legend-ev-chargers">
+          <h4 class="legend-title">EV Chargers</h4>
+          <ul class="legend">
+            <li><span class="legend-swatch legend-swatch-round" style="background:#1a4971"></span>DCFC</li>
+            <li><span class="legend-swatch legend-swatch-round" style="background:#63b3ed"></span>L2</li>
+          </ul>
+        </div>
+        <div class="legend-block" id="legend-gas-stations">
+          <h4 class="legend-title">Gas Stations</h4>
+          <ul class="legend"><li><span class="legend-swatch legend-swatch-round" style="background:#333333"></span>Gas station</li></ul>
+        </div>
+        <div class="legend-block" id="legend-parking-lots">
+          <h4 class="legend-title">Parking Lots</h4>
+          <ul class="legend"><li><span class="legend-swatch" style="background:#d9d9d9"></span>Parking lot</li></ul>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

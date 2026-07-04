@@ -1,0 +1,29 @@
+node_modules/
+dist/
+*.log
+__pycache__/
+*.pyc
+
+# Local Claude Code settings (personal Bash permission allowlist) — not meant
+# to be shared/committed, analogous to .env.local
+.claude/settings.local.json
+
+# Personal machine-specific / operational notes — not meant to be public
+python-notes.txt
+dev-server.txt
+ev-siting-map-architecture.md
+
+# Raw tippecanoe build input (~100MB) — only the tiled public/tiles/*.pmtiles
+# output gets committed, see scripts/fetch_load_capacity_raw.py
+build/
+
+# Raw StatsCan census download (~645MB), manually downloaded — only the small
+# extracted scripts/data/census_dwellings_by_fsa.csv gets committed,
+# see scripts/extract_census_dwellings.py
+2021-Census-Data/
+
+# Raw NRCan alt-fuel-stations CSV (~1.7MB), manually downloaded — the live
+# ArcGIS FeatureServer the doc originally planned to hit is dead (single
+# null record). Only public/data/ev_chargers.geojson gets committed,
+# see scripts/extract_ev_chargers.py
+fuel-stations-data/
