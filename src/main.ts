@@ -40,6 +40,7 @@ const map = new MapLibreMap({
 });
 
 map.on('load', () => {
+  map.addImage('gas-station-square', createSquareIcon(8, 2, '#333333'));
   addStaticLayers();
   initClickDispatcher(map);
 
@@ -81,6 +82,21 @@ function resolveAssetUrl(path: string): string {
   return `${import.meta.env.BASE_URL}${path}`;
 }
 
+// A plain solid-color rounded square, generated on the fly rather than
+// shipped as an image asset — gas stations only ever need this one flat
+// color, so a canvas draw is simpler than managing a static file.
+function createSquareIcon(size: number, radius: number, color: string): ImageData {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.roundRect(0, 0, size, size, radius);
+  ctx.fill();
+  return ctx.getImageData(0, 0, size, size);
+}
+
 function addStaticLayers(): void {
   const addedSources = new Set<string>();
 
@@ -107,6 +123,7 @@ function addStaticLayers(): void {
       paint: config.paint,
       layout: {
         visibility: config.defaultVisible ? 'visible' : 'none',
+        ...config.layout,
       },
       minzoom: config.minZoom ?? 0,
       // Only include these when they have real values — MapLibre's style

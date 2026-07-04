@@ -1,4 +1,4 @@
-export type LayerType = 'fill' | 'line' | 'circle';
+export type LayerType = 'fill' | 'line' | 'circle' | 'symbol';
 
 // Paths are relative to Vite's BASE_URL (e.g. '/ev-siting-map/'), NOT the
 // domain root — resolve with `${import.meta.env.BASE_URL}${path}` at the
@@ -24,6 +24,9 @@ export interface LayerConfig {
   // via an `as never` cast when calling addLayer, so the stricter type
   // wasn't buying real end-to-end safety anyway.
   paint: Record<string, unknown>;
+  /** Extra layout properties beyond `visibility` (which addStaticLayers
+   *  always sets itself) — e.g. gas-stations' icon-image/icon-size. */
+  layout?: Record<string, unknown>;
   /** MapLibre filter expression, for layers that split a shared source */
   filter?: unknown[];
   defaultVisible: boolean;
@@ -33,40 +36,16 @@ export interface LayerConfig {
 // NOTE: every layer below is confirmed against real data — see
 // scripts/fetch_ccim.py, scripts/fetch_load_capacity_raw.py,
 // scripts/fetch_ev_adoption.py, and scripts/extract_ev_chargers.py.
-
+//
+// Array order is render order, bottom to top: MapLibre stacks layers by
+// addLayer call order regardless of visibility (main.ts's addStaticLayers
+// just loops over this array with no beforeId), so a layer's position here
+// IS its z-order. Bottom to top: the FSA-level Area Overview choropleths,
+// then Load Capacity, then Custom Overlay, then Parking Lots, then the point
+// layers (EV Chargers / Gas Stations), then LDC Territory Boundaries on top
+// of everything (also pinned there explicitly via map.moveLayer in main.ts,
+// belt-and-suspenders against future reordering here).
 export const layerConfigs: LayerConfig[] = [
-  {
-    id: 'load-capacity',
-    label: 'Available Load Capacity (MVA)',
-    sourceId: 'load-capacity',
-    // Pre-tiled via tippecanoe (scripts/fetch_load_capacity_raw.py -> tippecanoe),
-    // not a live query and not a single baked GeoJSON: the full GGH dataset is
-    // ~43k feeder polygons / ~100MB as GeoJSON, too large to bake or query
-    // per-viewport reliably. The .pmtiles archive is ~11MB, self-hosted, no
-    // billing/API key, and MapLibre only fetches the tiles a given view needs.
-    //
-    // Colors are the dataviz skill's fixed status palette (good/warning/serious/
-    // critical) — "available capacity" is a genuine good/bad signal, not arbitrary
-    // category identity, so it wears status tokens rather than a hand-picked ramp.
-    // The real data has 5 buckets ('1.1 - 3.0' and '3.1 - 5.0' are distinct); both
-    // collapse into the single [1,5) "serious" tier per the requested 4-tier legend.
-    source: { kind: 'vector', path: 'tiles/load_capacity.pmtiles', sourceLayer: 'load_capacity' },
-    type: 'fill',
-    paint: {
-      'fill-color': [
-        'match',
-        ['get', 'capacityrange'],
-        '0.0 - 1.0', '#b8433f', // red
-        '1.1 - 3.0', '#c7a832', // yellow
-        '3.1 - 5.0', '#c7a832', // yellow
-        '5.1 - 10.0', '#8ba33e', // yellow-green
-        '10.0 +', '#1f7a3d', // dark green
-        /* fallback, incl. null */ '#9a9890',
-      ],
-      'fill-opacity': 0.55,
-    },
-    defaultVisible: true,
-  },
   {
     // ev-adoption-pct / ev-adoption-total / ev-adoption-housing share one
     // source (built by scripts/fetch_ev_adoption.py: StatsCan CFSA boundaries
@@ -148,40 +127,6 @@ export const layerConfigs: LayerConfig[] = [
     defaultVisible: false,
   },
   {
-    // One shared layer, not split by type — a station can have more than one
-    // port type simultaneously (39 of 2860 GGH stations have both L2 and
-    // DCFC), so charger type is a filter-menu concern (src/evChargerFilters.ts,
-    // ANDed onto this layer via map.setFilter), not separate map layers.
-    // Color follows a priority order (DCFC > L2 > L1) since a dual-capability
-    // station still needs exactly one dot color.
-    id: 'ev-chargers',
-    label: 'EV Chargers',
-    sourceId: 'ev-chargers',
-    source: { kind: 'geojson', path: 'data/ev_chargers.geojson' },
-    type: 'circle',
-    paint: {
-      'circle-color': ['case', ['get', 'has_dcfc'], '#1a4971', ['get', 'has_l2'], '#63b3ed', '#999999'],
-      'circle-radius': ['interpolate', ['linear'], ['get', 'total_ports'], 1, 4, 6, 8, 20, 12, 60, 14],
-      'circle-stroke-color': '#ffffff',
-      'circle-stroke-width': 1,
-    },
-    defaultVisible: false,
-    minZoom: 10,
-  },
-  {
-    id: 'gas-stations',
-    label: 'Gas Stations',
-    sourceId: 'gas-stations',
-    source: { kind: 'geojson', path: 'data/gas_stations.geojson' },
-    type: 'circle',
-    paint: {
-      'circle-color': '#333333',
-      'circle-radius': 5,
-    },
-    defaultVisible: false,
-    minZoom: 10, // matches ev-chargers, so both appear at the same zoom level
-  },
-  {
     // Shares the ev-adoption source too (see the comment on ev-adoption-pct
     // above) — median_income comes from the same StatsCan Census Profile
     // pull as the dwelling data, just characteristic 243 instead. Originally
@@ -209,6 +154,38 @@ export const layerConfigs: LayerConfig[] = [
       'fill-opacity': ['case', ['==', ['get', 'median_income'], null], 0, 0.6],
     },
     defaultVisible: false,
+  },
+  {
+    id: 'load-capacity',
+    label: 'Available Load Capacity (MVA)',
+    sourceId: 'load-capacity',
+    // Pre-tiled via tippecanoe (scripts/fetch_load_capacity_raw.py -> tippecanoe),
+    // not a live query and not a single baked GeoJSON: the full GGH dataset is
+    // ~43k feeder polygons / ~100MB as GeoJSON, too large to bake or query
+    // per-viewport reliably. The .pmtiles archive is ~11MB, self-hosted, no
+    // billing/API key, and MapLibre only fetches the tiles a given view needs.
+    //
+    // Colors are the dataviz skill's fixed status palette (good/warning/serious/
+    // critical) — "available capacity" is a genuine good/bad signal, not arbitrary
+    // category identity, so it wears status tokens rather than a hand-picked ramp.
+    // The real data has 5 buckets ('1.1 - 3.0' and '3.1 - 5.0' are distinct); both
+    // collapse into the single [1,5) "serious" tier per the requested 4-tier legend.
+    source: { kind: 'vector', path: 'tiles/load_capacity.pmtiles', sourceLayer: 'load_capacity' },
+    type: 'fill',
+    paint: {
+      'fill-color': [
+        'match',
+        ['get', 'capacityrange'],
+        '0.0 - 1.0', '#b8433f', // red
+        '1.1 - 3.0', '#c7a832', // yellow
+        '3.1 - 5.0', '#c7a832', // yellow
+        '5.1 - 10.0', '#8ba33e', // yellow-green
+        '10.0 +', '#1f7a3d', // dark green
+        /* fallback, incl. null */ '#9a9890',
+      ],
+      'fill-opacity': 0.55,
+    },
+    defaultVisible: true,
   },
   {
     // The "site selection" overlay: a single precomputed layer of every
@@ -253,6 +230,50 @@ export const layerConfigs: LayerConfig[] = [
     },
     defaultVisible: false,
     minZoom: 13,
+  },
+  {
+    // One shared layer, not split by type — a station can have more than one
+    // port type simultaneously (39 of 2860 GGH stations have both L2 and
+    // DCFC), so charger type is a filter-menu concern (src/evChargerFilters.ts,
+    // ANDed onto this layer via map.setFilter), not separate map layers.
+    // Color follows a priority order (DCFC > L2 > L1) since a dual-capability
+    // station still needs exactly one dot color.
+    id: 'ev-chargers',
+    label: 'EV Chargers',
+    sourceId: 'ev-chargers',
+    source: { kind: 'geojson', path: 'data/ev_chargers.geojson' },
+    type: 'circle',
+    paint: {
+      'circle-color': ['case', ['get', 'has_dcfc'], '#1a4971', ['get', 'has_l2'], '#63b3ed', '#999999'],
+      'circle-radius': ['interpolate', ['linear'], ['get', 'total_ports'], 1, 4, 6, 8, 20, 12, 60, 14],
+      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': 1,
+    },
+    defaultVisible: false,
+    minZoom: 10,
+  },
+  {
+    // A symbol layer, not circle — the square distinguishes it at a glance
+    // from ev-chargers' round markers. The icon itself is a plain generated
+    // square (see createSquareIcon in main.ts), registered via map.addImage
+    // before this layer is added, rather than a shipped asset file.
+    id: 'gas-stations',
+    label: 'Gas Stations',
+    sourceId: 'gas-stations',
+    source: { kind: 'geojson', path: 'data/gas_stations.geojson' },
+    type: 'symbol',
+    paint: {},
+    layout: {
+      'icon-image': 'gas-station-square',
+      'icon-size': 1,
+      // Matches circle layers' behavior of always rendering every point —
+      // symbol layers, unlike circle, hide markers that collide with each
+      // other or with other symbols (e.g. LDC territory labels) by default.
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+    },
+    defaultVisible: false,
+    minZoom: 10, // matches ev-chargers, so both appear at the same zoom level
   },
   {
     // Defined last so it's the topmost static layer by default add-order —
