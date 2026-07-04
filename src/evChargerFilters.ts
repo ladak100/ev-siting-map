@@ -36,6 +36,11 @@ function applyFilter(map: MapLibreMap): void {
   map.setFilter(LAYER_ID, computeFilter() as never);
 }
 
+function updateBadge(toggle: HTMLElement): void {
+  const badge = toggle.querySelector<HTMLElement>('[data-role="filter-badge"]');
+  if (badge) badge.hidden = selectedTypes.size === 0 && selectedNetworks.size === 0;
+}
+
 /**
  * Builds the combined charger-type + network filter accordion. Network
  * options come from the data itself (network_group, computed in
@@ -54,6 +59,7 @@ export async function initEvChargerFilters(map: MapLibreMap, geojsonUrl: string)
       if (checkbox.checked) selectedTypes.add(type);
       else selectedTypes.delete(type);
       applyFilter(map);
+      updateBadge(toggle);
     });
   });
 
@@ -80,6 +86,7 @@ export async function initEvChargerFilters(map: MapLibreMap, geojsonUrl: string)
       if (checkbox.checked) selectedNetworks.add(checkbox.value);
       else selectedNetworks.delete(checkbox.value);
       applyFilter(map);
+      updateBadge(toggle);
     });
   });
 

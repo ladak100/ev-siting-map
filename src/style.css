@@ -342,6 +342,7 @@ html, body {
 }
 
 .accordion-toggle {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -353,6 +354,21 @@ html, body {
   background: #fff;
   color: #444;
   cursor: pointer;
+}
+
+/* Dot in the corner of a filter's accordion-toggle button, shown whenever
+   that filter panel holds a non-default selection — a signal that's still
+   visible while the panel itself is collapsed, so a user isn't left
+   wondering why a layer looks filtered without reopening the panel to check. */
+.filter-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #dd6b20;
+  border: 1.5px solid #fff;
 }
 
 .accordion-toggle[aria-expanded='true'] {

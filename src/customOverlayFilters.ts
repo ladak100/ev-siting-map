@@ -51,6 +51,21 @@ function computeFilter(panel: HTMLElement): unknown {
   return ['all', ...conditions];
 }
 
+// A slider still sitting at its full min-max range excludes nothing, so it
+// doesn't count as "active" — only a narrowed range should light the badge.
+function updateBadge(panel: HTMLElement, toggle: HTMLElement): void {
+  const badge = toggle.querySelector<HTMLElement>('[data-role="filter-badge"]');
+  if (!badge) return;
+  const anyNarrowed = SLIDER_FIELDS.some((field) => {
+    const wrapper = panel.querySelector<HTMLElement>(`[data-slider-field="${field}"]`);
+    const minInput = wrapper?.querySelector<HTMLInputElement>('input[data-role="min"]');
+    const maxInput = wrapper?.querySelector<HTMLInputElement>('input[data-role="max"]');
+    if (!minInput || !maxInput) return false;
+    return Number(minInput.value) !== Number(minInput.min) || Number(maxInput.value) !== Number(maxInput.max);
+  });
+  badge.hidden = !anyNarrowed;
+}
+
 // Matches .slider-histogram's CSS height exactly — pixel heights here
 // instead of percentages, so there's no dependency on how a browser resolves
 // a percentage height on a flex item (an edge case with a history of
@@ -71,7 +86,7 @@ function renderHistogram(container: HTMLElement, bins: HistogramBins): HTMLEleme
   });
 }
 
-function initSliderField(map: MapLibreMap, panel: HTMLElement, field: SliderField, histogram: HistogramBins | undefined): void {
+function initSliderField(map: MapLibreMap, panel: HTMLElement, toggle: HTMLElement, field: SliderField, histogram: HistogramBins | undefined): void {
   const wrapper = panel.querySelector<HTMLElement>(`[data-slider-field="${field}"]`);
   const minInput = wrapper?.querySelector<HTMLInputElement>('input[data-role="min"]');
   const maxInput = wrapper?.querySelector<HTMLInputElement>('input[data-role="max"]');
@@ -116,6 +131,7 @@ function initSliderField(map: MapLibreMap, panel: HTMLElement, field: SliderFiel
     }
 
     map.setFilter(LAYER_ID, computeFilter(panel) as never);
+    updateBadge(panel, toggle);
   }
 
   minInput.addEventListener('input', () => refresh(minInput));
@@ -149,7 +165,7 @@ export async function initCustomOverlayFilters(map: MapLibreMap, histogramsUrl: 
   }
 
   for (const field of SLIDER_FIELDS) {
-    initSliderField(map, panel, field, histograms[field]);
+    initSliderField(map, panel, toggle, field, histograms[field]);
   }
 
   // Same plain inline accordion as the EV Charger filter panel — no
