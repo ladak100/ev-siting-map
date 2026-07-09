@@ -228,7 +228,7 @@ export const layerConfigs: LayerConfig[] = [
       'fill-color': '#d9d9d9',
       'fill-outline-color': '#a6a6a6',
     },
-    defaultVisible: false,
+    defaultVisible: true,
     minZoom: 13,
   },
   {
@@ -249,7 +249,7 @@ export const layerConfigs: LayerConfig[] = [
       'circle-stroke-color': '#ffffff',
       'circle-stroke-width': 1,
     },
-    defaultVisible: false,
+    defaultVisible: true,
     minZoom: 10,
   },
   {
