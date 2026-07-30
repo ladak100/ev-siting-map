@@ -5,6 +5,7 @@ import { layerConfigs } from './layers';
 import { attachPopup, initClickDispatcher } from './popups';
 import { renderEvAdoptionPopup } from './evAdoptionPopup';
 import { renderEvChargerPopup } from './evChargerPopup';
+import { renderLoadCapacityPopup } from './loadCapacityPopup';
 import { initEvChargerFilters } from './evChargerFilters';
 import { initCustomOverlayFilters } from './customOverlayFilters';
 import { initSidebarToggle, initLayerCheckboxes, initAreaOverviewRadios, initLegendToggle } from './controls';
@@ -141,6 +142,7 @@ function addStaticLayers(): void {
       // layer itself, rendered on top, already gets the real popup.
     } else if (config.id === 'load-capacity') {
       attachPopup(map, config.id, {
+        renderHTML: renderLoadCapacityPopup,
         onSelect: (feature) => selectFeeder(feature.properties?.[FEEDER_ID_FIELD]),
         onDeselect: () => selectFeeder(undefined),
       });

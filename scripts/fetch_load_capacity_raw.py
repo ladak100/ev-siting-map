@@ -59,7 +59,7 @@ def fetch_all_features(total: int) -> list:
             "geometryType": "esriGeometryEnvelope",
             "inSR": "4326",
             "spatialRel": "esriSpatialRelIntersects",
-            "outFields": "idldc,ldc_name,capacityrange,capacity,last_update",
+            "outFields": "idldc,ldc_name,capacityrange,capacity,last_update,configuration,feeder_ltl_voltage_3ph,feeder_ltn_voltage_1ph",
             "orderByFields": "objectid",
             "resultOffset": offset,
             "resultRecordCount": PAGE_SIZE,
