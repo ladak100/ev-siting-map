@@ -7,7 +7,7 @@ import { renderEvAdoptionPopup } from './evAdoptionPopup';
 import { renderEvChargerPopup } from './evChargerPopup';
 import { initEvChargerFilters } from './evChargerFilters';
 import { initCustomOverlayFilters } from './customOverlayFilters';
-import { initSidebarToggle, initLayerCheckboxes, initAreaOverviewRadios } from './controls';
+import { initSidebarToggle, initLayerCheckboxes, initAreaOverviewRadios, initLegendToggle } from './controls';
 
 const pmtilesProtocol = new PMTilesProtocol();
 addProtocol('pmtiles', pmtilesProtocol.tile);
@@ -48,6 +48,7 @@ map.on('load', () => {
   map.moveLayer('ldc-territories');
 
   initSidebarToggle();
+  initLegendToggle();
   initLayerCheckboxes(map);
   initAreaOverviewRadios(map);
   initLegendAttributionSpacing(map);
@@ -134,8 +135,10 @@ function addStaticLayers(): void {
       ...(config.filter ? { filter: config.filter } : {}),
     } as never);
 
-    if (config.id === 'ldc-territories' || config.id === 'parking-lots' || config.id === 'custom-overlay') {
-      // Context layers, not interactive targets — no popup.
+    if (config.id === 'ldc-territories' || config.id === 'parking-lots' || config.id === 'custom-overlay' || config.id === 'aadt-casing') {
+      // Context layers, not interactive targets — no popup. aadt-casing is
+      // pure decoration (the dark border under the aadt line) — the aadt
+      // layer itself, rendered on top, already gets the real popup.
     } else if (config.id === 'load-capacity') {
       attachPopup(map, config.id, {
         onSelect: (feature) => selectFeeder(feature.properties?.[FEEDER_ID_FIELD]),

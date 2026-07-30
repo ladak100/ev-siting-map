@@ -232,6 +232,68 @@ export const layerConfigs: LayerConfig[] = [
     minZoom: 13,
   },
   {
+    // A dark casing rendered under the actual aadt line (added first here so
+    // it stacks below), same "wider line underneath" trick every road-casing
+    // style uses — plain line layers have no native border/stroke property
+    // the way circle layers do. Shares aadt's own source/geometry, so it's
+    // wired as a checkbox-companion layer the same way ldc-territories-labels
+    // rides along with ldc-territories (see controls.ts's `-casing` handling
+    // in initLayerCheckboxes).
+    id: 'aadt-casing',
+    label: 'Traffic Volume (AADT) casing',
+    sourceId: 'aadt',
+    source: { kind: 'geojson', path: 'data/aadt.geojson' },
+    type: 'line',
+    paint: {
+      'line-color': '#333333',
+      'line-width': 4.5,
+    },
+    defaultVisible: false,
+  },
+  {
+    // Sourced from MTO's public "Historical AADT & AADTT" ArcGIS Feature
+    // Service (scripts/fetch_aadt.py) — MTO has already resolved their own
+    // LHRS+Offset linear referencing into real per-segment polyline geometry,
+    // so this is a plain committed GeoJSON like ev-chargers/gas-stations, no
+    // tippecanoe tiling needed at only 524 GGH features. 2019 data (AADT19)
+    // deliberately, not the more recent 2021: COVID-distorted counts would
+    // understate a "normal" baseline, and it's also as recent as this
+    // particular MTO archive goes (last edited Jan 2023, not live-updated —
+    // see fetch_aadt.py for why this is a manual-refresh source).
+    //
+    // Colors and breaks match MTO's own official AADT legend exactly (a
+    // magenta/pink/plum sequential ramp) rather than this app's usual green
+    // Area Overview ramp — deliberately a distinct hue, since this is an
+    // Infrastructure checkbox (not part of the Area Overview radio group) and
+    // so can be visible at the same time as a green choropleth underneath it.
+    //
+    // No minZoom — unlike the point/parking-lots detail layers, a traffic
+    // segment is meaningful information at any zoom, not just close-up.
+    id: 'aadt',
+    label: 'Traffic Volume (AADT)',
+    sourceId: 'aadt',
+    source: { kind: 'geojson', path: 'data/aadt.geojson' },
+    type: 'line',
+    paint: {
+      'line-color': [
+        'step',
+        ['get', 'aadt'],
+        '#fdeaf3', // 0 - 5,000
+        5000, '#fbd0e5', // 5,000 - 10,000
+        10000, '#f7b0d3', // 10,000 - 20,000
+        20000, '#f28fc0', // 20,000 - 50,000
+        50000, '#e96daa', // 50,000 - 100,000
+        100000, '#d84f92', // 100,000 - 150,000
+        150000, '#bc3b7d', // 150,000 - 200,000
+        200000, '#9c2f68', // 200,000 - 250,000
+        250000, '#7c2454', // 250,000 - 300,000
+        300000, '#591a3d', // > 300,000 - 500,000
+      ],
+      'line-width': 3,
+    },
+    defaultVisible: false,
+  },
+  {
     // One shared layer, not split by type — a station can have more than one
     // port type simultaneously (39 of 2860 GGH stations have both L2 and
     // DCFC), so charger type is a filter-menu concern (src/evChargerFilters.ts,

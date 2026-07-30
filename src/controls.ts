@@ -11,6 +11,11 @@ const MOBILE_BREAKPOINT_PX = 640;
  * a child — can react to it via CSS without needing DOM access to #sidebar.
  * Defaults to collapsed on narrow viewports so mobile users see the map
  * first, not a full-width sidebar.
+ *
+ * The button's own icon (a ▾, shared with #map-legend-toggle) is rotated by
+ * CSS purely off the .sidebar-collapsed class — see style.css's
+ * `#sidebar-toggle .toggle-icon` rules — so there's no textContent swapping
+ * here, just the class and the aria-label.
  */
 export function initSidebarToggle(): void {
   const app = document.getElementById('app');
@@ -19,7 +24,6 @@ export function initSidebarToggle(): void {
 
   function setCollapsed(collapsed: boolean): void {
     app!.classList.toggle('sidebar-collapsed', collapsed);
-    toggle!.textContent = collapsed ? '›' : '‹';
     toggle!.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
   }
 
@@ -45,11 +49,38 @@ function setLegendBlockVisible(layerId: string, visible: boolean): void {
 }
 
 // Hides the whole floating card when it would otherwise render as an empty box.
+// Queries .legend-block descendants generally (not direct children) since
+// they live inside #map-legend-content, not #map-legend itself — see
+// initLegendToggle.
 function refreshMapLegendContainer(): void {
   const container = document.getElementById('map-legend');
   if (!container) return;
-  const anyVisible = Array.from(container.children).some((el) => (el as HTMLElement).style.display !== 'none');
+  const blocks = container.querySelectorAll<HTMLElement>('.legend-block');
+  const anyVisible = Array.from(blocks).some((el) => el.style.display !== 'none');
   container.style.display = anyVisible ? '' : 'none';
+}
+
+/**
+ * Wires the toggle in #map-legend-header to collapse/expand
+ * #map-legend-content — same collapsible-card idea as the sidebar toggle
+ * (initSidebarToggle above) and the same shared ▾ icon, just rotated onto
+ * the vertical axis instead of horizontal (see style.css). Defaults to
+ * expanded; purely a per-session UI preference, not persisted.
+ */
+export function initLegendToggle(): void {
+  const legend = document.getElementById('map-legend');
+  const toggle = document.getElementById('map-legend-toggle');
+  if (!legend || !toggle) return;
+
+  function setCollapsed(collapsed: boolean): void {
+    legend!.classList.toggle('legend-collapsed', collapsed);
+    toggle!.setAttribute('aria-expanded', String(!collapsed));
+    toggle!.setAttribute('aria-label', collapsed ? 'Expand legend' : 'Collapse legend');
+  }
+
+  toggle.addEventListener('click', () => {
+    setCollapsed(!legend.classList.contains('legend-collapsed'));
+  });
 }
 
 /**
@@ -60,11 +91,14 @@ function refreshMapLegendContainer(): void {
  *
  * A checkbox may have a companion legend block, `#legend-<layerId>`
  * (e.g. #legend-load-capacity), shown/hidden alongside it. It may also have
- * a companion map layer, `<layerId>-labels` (e.g. ldc-territories-labels),
- * toggled together since it's the same conceptual layer to the user.
+ * one or more companion map layers — `<layerId>-labels` (e.g.
+ * ldc-territories-labels) or `<layerId>-casing` (e.g. aadt-casing, the dark
+ * border rendered under the aadt line) — toggled together since they're the
+ * same conceptual layer to the user.
  */
 export function initLayerCheckboxes(map: MapLibreMap): void {
   const checkboxes = document.querySelectorAll<HTMLInputElement>('input[type="checkbox"][data-layer-id]');
+  const COMPANION_SUFFIXES = ['-labels', '-casing'];
 
   checkboxes.forEach((checkbox) => {
     const layerId = checkbox.dataset.layerId;
@@ -76,12 +110,14 @@ export function initLayerCheckboxes(map: MapLibreMap): void {
       return;
     }
 
-    const labelsLayerId = `${layerId}-labels`;
+    const companionLayerIds = COMPANION_SUFFIXES.map((suffix) => `${layerId}${suffix}`);
     const setLayerVisibility = (visible: boolean) => {
       const visibility = visible ? 'visible' : 'none';
       map.setLayoutProperty(layerId, 'visibility', visibility);
-      if (map.getLayer(labelsLayerId)) {
-        map.setLayoutProperty(labelsLayerId, 'visibility', visibility);
+      for (const companionId of companionLayerIds) {
+        if (map.getLayer(companionId)) {
+          map.setLayoutProperty(companionId, 'visibility', visibility);
+        }
       }
     };
 

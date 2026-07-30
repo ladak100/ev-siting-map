@@ -119,6 +119,7 @@
             </div>
             <label><input type="checkbox" data-layer-id="gas-stations" /> Gas Stations</label>
             <label><input type="checkbox" data-layer-id="parking-lots" /> Parking Lots</label>
+            <label><input type="checkbox" data-layer-id="aadt" /> Traffic Volume (AADT)</label>
           </fieldset>
 
           <div class="sidebar-attribution">
@@ -134,9 +135,14 @@
           </div>
         </div>
       </aside>
-      <button id="sidebar-toggle" aria-label="Collapse sidebar">‹</button>
+      <button id="sidebar-toggle" aria-label="Collapse sidebar"><span class="toggle-icon">▾</span></button>
       <div id="map"></div>
       <div id="map-legend">
+        <div id="map-legend-header">
+          <span>Legend</span>
+          <button type="button" id="map-legend-toggle" aria-label="Collapse legend" aria-expanded="true"><span class="toggle-icon">▾</span></button>
+        </div>
+        <div id="map-legend-content">
         <div class="legend-block" id="legend-load-capacity">
           <h4 class="legend-title">Available Load Capacity (MVA)</h4>
           <ul class="legend">
@@ -192,6 +198,22 @@
         <div class="legend-block" id="legend-parking-lots">
           <h4 class="legend-title">Parking Lots</h4>
           <ul class="legend"><li><span class="legend-swatch" style="background:#d9d9d9"></span>Parking lot</li></ul>
+        </div>
+        <div class="legend-block" id="legend-aadt">
+          <h4 class="legend-title">Traffic Volume (AADT)</h4>
+          <ul class="legend">
+            <li><span class="legend-swatch" style="background:#591a3d"></span>300k–500k</li>
+            <li><span class="legend-swatch" style="background:#7c2454"></span>250k–300k</li>
+            <li><span class="legend-swatch" style="background:#9c2f68"></span>200k–250k</li>
+            <li><span class="legend-swatch" style="background:#bc3b7d"></span>150k–200k</li>
+            <li><span class="legend-swatch" style="background:#d84f92"></span>100k–150k</li>
+            <li><span class="legend-swatch" style="background:#e96daa"></span>50k–100k</li>
+            <li><span class="legend-swatch" style="background:#f28fc0"></span>20k–50k</li>
+            <li><span class="legend-swatch" style="background:#f7b0d3"></span>10k–20k</li>
+            <li><span class="legend-swatch" style="background:#fbd0e5"></span>5k–10k</li>
+            <li><span class="legend-swatch" style="background:#fdeaf3"></span>0–5k</li>
+          </ul>
+        </div>
         </div>
       </div>
     </div>

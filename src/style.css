@@ -35,6 +35,50 @@ html, body {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
 }
 
+#map-legend-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #666;
+}
+
+/* Shared by #sidebar-toggle and #map-legend-toggle — same ▾ glyph for both
+   of the app's collapsible affordances, rotated per context via the specific
+   selectors below rather than baked into the icon itself, so one shape reads
+   as "collapse" everywhere regardless of which axis it collapses along. */
+.toggle-icon {
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+
+#map-legend-toggle {
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* Legend collapses vertically: down (unrotated) while expanded, right while collapsed. */
+#map-legend.legend-collapsed .toggle-icon {
+  transform: rotate(-90deg);
+}
+
+#map-legend-content {
+  margin-top: 8px;
+}
+
+#map-legend.legend-collapsed #map-legend-content {
+  display: none;
+}
+
 /* One block per layer; JS shows/hides each based on that layer's own
    visibility, so any combination of active layers can be listed together.
    Every block gets the same bottom divider (rather than only between
@@ -94,7 +138,6 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding-left: 3px; /* the ‹/› glyph optically sits left-of-center otherwise */
   border: 1px solid #d9d9d9;
   border-left: none;
   border-radius: 0 6px 6px 0;
@@ -104,6 +147,17 @@ html, body {
   cursor: pointer;
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
   transition: left 0.2s ease;
+}
+
+/* Sidebar collapses horizontally, unlike the legend's vertical .toggle-icon
+   rotation above — same ▾ glyph, just rotated onto the left/right axis:
+   left (pointing "collapse this way") while expanded, right while collapsed. */
+#sidebar-toggle .toggle-icon {
+  transform: rotate(90deg);
+}
+
+#app.sidebar-collapsed #sidebar-toggle .toggle-icon {
+  transform: rotate(-90deg);
 }
 
 #app.sidebar-collapsed #sidebar-toggle {
