@@ -1,7 +1,7 @@
 import type { Map as MapLibreMap } from 'maplibre-gl';
 
 const LAYER_ID = 'ev-chargers';
-const CHARGER_TYPES = ['l2', 'dcfc'] as const; // L1 excluded — exactly 1 GGH station has any L1 ports, not worth a filter row
+const CHARGER_TYPES = ['l2', 'dcfc'] as const; // L1 excluded — exactly 1 Ontario station has any L1 ports, not worth a filter row
 type ChargerType = (typeof CHARGER_TYPES)[number];
 
 // "Tesla" (the raw network value, used for both filtering and the popup) is

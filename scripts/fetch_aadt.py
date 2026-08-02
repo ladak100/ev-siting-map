@@ -1,5 +1,5 @@
 """Builds public/data/aadt.geojson from MTO's public "Historical AADT & AADTT"
-ArcGIS Feature Service, clipped to the GGH bbox.
+ArcGIS Feature Service, clipped to the Ontario bbox.
 
 MANUAL-refresh source, not part of the automated monthly cron: this service's
 data is a frozen historical archive (years 1988-2019, last edited Jan 2023),
@@ -15,8 +15,9 @@ as this particular service goes.
 
 Service discovered via the ArcGIS Hub "MTO iCorridor" portal
 (icorridor-mto-on-ca.hub.arcgis.com) search API; confirmed public, no API key
-needed, geometryType esriGeometryPolyline, 1,844 features province-wide / 524
-within the GGH bbox.
+needed, geometryType esriGeometryPolyline, 1,844 features province-wide — this
+dataset was already Ontario-only, so the Ontario-wide bbox now returns all of
+them (previously only 524 fell within the smaller GGH-only bbox this replaced).
 """
 
 import json
@@ -65,7 +66,7 @@ def fetch_aadt() -> dict:
     if feature_count == 0:
         raise ValueError("Query returned zero features — refusing to overwrite existing data")
     if feature_count >= 2000:
-        # Confirmed 524 features in the GGH bbox at write time — a count this
+        # Confirmed 1,844 features in the Ontario bbox at write time — a count this
         # high suggests server-side truncation (maxRecordCount), which would
         # need pagination like fetch_ev_chargers/fetch_ccim's load-capacity
         # counterpart already do. Investigate before trusting this file.

@@ -1,5 +1,5 @@
 """Builds a raw intermediate GeoJSON — one polygon per Forward Sortation
-Area (FSA) in the GGH, carrying:
+Area (FSA) in Ontario, carrying:
   - total_ev, ev_adoption_pct (latest MTO quarter)
   - houses_pct (StatsCan 2021 census dwelling structural type)
   - median_income (StatsCan 2021 census, characteristic 243 — "Median total
@@ -62,6 +62,18 @@ QUARTER_NAME_RE = re.compile(r"^Q([1-4]) (\d{4})$")
 MIN_DWELLINGS_FOR_RATE = 50
 
 
+# The first letter of a Canadian FSA/postal code identifies its province —
+# Ontario is unambiguously K/L/M/N/P. The bbox is deliberately padded generous
+# at the edges (see bbox.py), which pulls in a handful of genuinely
+# cross-border Manitoba (R0*) and Nunavut/NWT (X0*) FSAs near Ontario's
+# northwest corner. Filtering by prefix here is more correct than trying to
+# tune the bbox to never touch a neighbouring province/territory — and it
+# sidesteps a real problem: geo.statcan.gc.ca 500s on those specific
+# out-of-province codes (their boundary geometry is apparently huge/complex
+# up there), not just on principle.
+ONTARIO_FSA_PREFIXES = ("K", "L", "M", "N", "P")
+
+
 def get_ggh_fsa_codes() -> list[str]:
     params = {
         "where": "1=1",
@@ -78,7 +90,8 @@ def get_ggh_fsa_codes() -> list[str]:
     data = response.json()
     if "error" in data:
         raise RuntimeError(f"CFSA code query failed: {data['error']}")
-    return [f["attributes"]["CFSAUID"] for f in data["features"]]
+    codes = [f["attributes"]["CFSAUID"] for f in data["features"]]
+    return [c for c in codes if c.startswith(ONTARIO_FSA_PREFIXES)]
 
 
 def fetch_fsa_boundaries(codes: list[str]) -> dict:
@@ -153,9 +166,9 @@ def quarter_label(year: int, quarter: int) -> str:
 
 
 def main() -> None:
-    print("Fetching GGH FSA code list...")
+    print("Fetching Ontario FSA code list...")
     codes = get_ggh_fsa_codes()
-    print(f"  {len(codes)} FSAs in the GGH bbox")
+    print(f"  {len(codes)} FSAs in the Ontario bbox")
 
     print("Fetching FSA boundary geometry...")
     boundaries = fetch_fsa_boundaries(codes)
@@ -200,7 +213,7 @@ def main() -> None:
 
         props["median_income"] = int(row["median_income"]) if row["median_income"] else None
 
-        # A handful of GGH FSAs are industrial/airport zones (e.g. L4V, L5S,
+        # A handful of Ontario FSAs are industrial/airport zones (e.g. L4V, L5S,
         # L5T near Pearson) with near-zero residential dwellings but nonzero
         # EV registrations (fleet vehicles, dealerships, leasing companies
         # tied to a business address there) — dividing by a near-zero

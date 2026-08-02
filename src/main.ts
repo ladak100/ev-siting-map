@@ -6,9 +6,11 @@ import { attachPopup, initClickDispatcher } from './popups';
 import { renderEvAdoptionPopup } from './evAdoptionPopup';
 import { renderEvChargerPopup } from './evChargerPopup';
 import { renderLoadCapacityPopup } from './loadCapacityPopup';
+import { renderAadtTorontoPopup } from './aadtTorontoPopup';
+import { renderAadtPopup } from './aadtPopup';
 import { initEvChargerFilters } from './evChargerFilters';
 import { initCustomOverlayFilters } from './customOverlayFilters';
-import { initSidebarToggle, initLayerCheckboxes, initAreaOverviewRadios, initLegendToggle } from './controls';
+import { initSidebarToggle, initLayerCheckboxes, initFillLayerRadios, initRoadLayerRadios, initLegendToggle } from './controls';
 
 const pmtilesProtocol = new PMTilesProtocol();
 addProtocol('pmtiles', pmtilesProtocol.tile);
@@ -24,7 +26,7 @@ const FEEDER_ID_FIELD = 'idldc';
 const FSA_ID_FIELD = 'CFSAUID';
 const NO_SELECTION = ' __none-selected__';
 
-// The Area Overview choropleths that share the ev_adoption.geojson source (see layers.ts) —
+// The Fill Layers choropleths that share the ev_adoption.geojson source (see layers.ts) —
 // same underlying FSA features, so they all get the same rich popup regardless of which is active.
 const FSA_LAYER_IDS = ['ev-adoption-pct', 'ev-adoption-total', 'ev-adoption-housing', 'household-income'];
 
@@ -51,7 +53,8 @@ map.on('load', () => {
   initSidebarToggle();
   initLegendToggle();
   initLayerCheckboxes(map);
-  initAreaOverviewRadios(map);
+  initFillLayerRadios(map);
+  initRoadLayerRadios(map);
   initLegendAttributionSpacing(map);
   initEvChargerFilters(map, resolveAssetUrl('data/ev_chargers.geojson'));
   initCustomOverlayFilters(map, resolveAssetUrl('data/custom_overlay_histograms.json'));
@@ -136,10 +139,30 @@ function addStaticLayers(): void {
       ...(config.filter ? { filter: config.filter } : {}),
     } as never);
 
-    if (config.id === 'ldc-territories' || config.id === 'parking-lots' || config.id === 'custom-overlay' || config.id === 'aadt-casing') {
-      // Context layers, not interactive targets — no popup. aadt-casing is
-      // pure decoration (the dark border under the aadt line) — the aadt
-      // layer itself, rendered on top, already gets the real popup.
+    if (
+      config.id === 'ldc-territories' ||
+      config.id === 'parking-lots' ||
+      config.id === 'custom-overlay' ||
+      config.id === 'aadt-casing' ||
+      config.id === 'aadt-toronto-casing' ||
+      config.id === 'zevip-corridor-zone' ||
+      config.id === 'zevip-corridor-casing'
+    ) {
+      // Context layers, not interactive targets — no popup. aadt-casing,
+      // aadt-toronto-casing, and zevip-corridor-casing are pure decoration
+      // (the dark border under their respective lines) and
+      // zevip-corridor-zone is the translucent eligibility-zone band — the
+      // real corridor/aadt/aadt-toronto lines, rendered on top, already get
+      // the real popup.
+    } else if (config.id === 'aadt-toronto') {
+      // Distinct renderer from aadt's generic fallback — this data is an
+      // estimate (see aadtTorontoPopup.ts), so its popup needs to show that
+      // estimation work rather than present a bare number.
+      attachPopup(map, config.id, { renderHTML: renderAadtTorontoPopup });
+    } else if (config.id === 'aadt') {
+      // Same table shape as aadt-toronto's popup (title, AADT, Road Type),
+      // see aadtPopup.ts — was previously the generic property-dump fallback.
+      attachPopup(map, config.id, { renderHTML: renderAadtPopup });
     } else if (config.id === 'load-capacity') {
       attachPopup(map, config.id, {
         renderHTML: renderLoadCapacityPopup,

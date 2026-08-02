@@ -1,12 +1,13 @@
-"""Fetches the FULL OEB CCIM Available Load Capacity dataset (~45k feeder
-polygons across the GGH, fully paginated past the server's 2000/request cap)
+"""Fetches the FULL OEB CCIM Available Load Capacity dataset (~132k feeder
+polygons across Ontario, fully paginated past the server's 2000/request cap)
 and writes a raw intermediate GeoJSON.
 
-This raw file is a BUILD INPUT for tippecanoe, not a served asset — at ~100MB
-it's far too large to commit or serve directly (that's the whole reason this
-layer became a tiled vector layer instead of a baked /public/data file, see
-ev-siting-map-architecture.md). Only the tiled output (public/tiles/load_capacity.pmtiles)
-gets committed. Run this, then run tippecanoe against its output.
+This raw file is a BUILD INPUT for tippecanoe, not a served asset — at
+~280MB it's far too large to commit or serve directly (that's the whole
+reason this layer became a tiled vector layer instead of a baked
+/public/data file, see ev-siting-map-architecture.md). Only the tiled output
+(public/tiles/load_capacity.pmtiles) gets committed. Run this, then run
+tippecanoe against its output.
 """
 
 import json
@@ -79,7 +80,7 @@ def fetch_all_features(total: int) -> list:
 
 def main() -> None:
     total = get_total_count()
-    print(f"Server reports {total} features intersecting the GGH bbox")
+    print(f"Server reports {total} features intersecting the Ontario bbox")
 
     features = fetch_all_features(total)
     if not features:

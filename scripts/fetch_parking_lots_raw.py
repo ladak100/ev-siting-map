@@ -1,12 +1,11 @@
-"""Fetches the FULL GGH-wide parking lot dataset (amenity=parking ways, via
-Overpass) and writes a raw intermediate GeoJSON.
+"""Fetches the FULL Ontario-wide parking lot dataset (amenity=parking ways,
+via Overpass) and writes a raw intermediate GeoJSON.
 
-This raw file is a BUILD INPUT for tippecanoe, not a served asset — ~59k
-polygons / ~26MB as GeoJSON, too large to bake directly (that's the whole
-reason this layer used to be a live per-viewport Overpass query instead of a
-baked /public/data file). Only the tiled output
-(public/tiles/parking_lots.pmtiles, ~6MB) gets committed. Run this, then run
-tippecanoe against its output.
+This raw file is a BUILD INPUT for tippecanoe, not a served asset — too
+large to bake directly (that's the whole reason this layer used to be a live
+per-viewport Overpass query instead of a baked /public/data file). Only the
+tiled output (public/tiles/parking_lots.pmtiles) gets committed. Run this,
+then run tippecanoe against its output.
 """
 
 import json
@@ -15,8 +14,6 @@ from pathlib import Path
 
 import requests
 
-from bbox import OVERPASS_BBOX
-
 OVERPASS_ENDPOINT = "https://overpass-api.de/api/interpreter"
 OUTPUT_PATH = Path(__file__).parent.parent / "build" / "parking_lots_raw.geojson"
 
@@ -24,9 +21,13 @@ OUTPUT_PATH = Path(__file__).parent.parent / "build" / "parking_lots_raw.geojson
 # "python-requests/x.x.x" User-Agent — a custom one clears it (see fetch_osm.py).
 HEADERS = {"User-Agent": "ev-siting-map-fetch-script/1.0"}
 
-QUERY = f"""
-[out:json][timeout:120][bbox:{OVERPASS_BBOX}];
-way[amenity=parking];
+# Filtered against Ontario's real administrative boundary, NOT bbox.py's
+# rectangular bbox — see fetch_osm.py's comment on why a plain [bbox:...]
+# filter at Ontario's scale would pull in Quebec/Manitoba/US data too.
+QUERY = """
+[out:json][timeout:180];
+area["ISO3166-2"="CA-ON"]->.on;
+way[amenity=parking](area.on);
 out geom;
 """
 
@@ -46,7 +47,7 @@ def element_to_feature(el: dict) -> dict | None:
 
 
 def main() -> None:
-    response = requests.post(OVERPASS_ENDPOINT, data={"data": QUERY}, headers=HEADERS, timeout=150)
+    response = requests.post(OVERPASS_ENDPOINT, data={"data": QUERY}, headers=HEADERS, timeout=210)
     response.raise_for_status()
     elements = response.json()["elements"]
 

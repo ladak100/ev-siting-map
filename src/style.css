@@ -100,6 +100,15 @@ html, body {
   color: #666;
 }
 
+/* A second, smaller heading inside a .legend-block — used when one toggle
+   covers more than one tier scale. */
+.legend-subtitle {
+  margin: 6px 0 2px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #999;
+}
+
 #sidebar {
   position: relative;
   z-index: 10;
@@ -557,6 +566,16 @@ html, body {
 .ev-popup td:first-child {
   color: #52514e;
   padding-right: 10px;
+}
+
+/* A caveat note under a popup's table — currently only aadtTorontoPopup.ts,
+   which needs to disclose that its numbers are an estimate, not a direct
+   measurement (unlike every other popup's data). */
+.popup-note {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: #898781;
+  max-width: 220px;
 }
 
 .ev-sparkline-axis {

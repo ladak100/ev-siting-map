@@ -54,7 +54,7 @@ def fetch_ldc_territories() -> dict:
     if feature_count == 0:
         raise ValueError("Query returned zero features — refusing to overwrite existing data")
     if feature_count >= 2000:
-        # This layer normally has ~25 features in the GGH bbox. A count this
+        # This layer normally has ~63 features in the Ontario bbox. A count this
         # high suggests the server truncated the response (maxRecordCount)
         # and we'd need pagination like fetch_ev_chargers/fetch_ccim's
         # load-capacity counterpart already do — investigate before trusting this file.

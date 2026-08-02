@@ -1,5 +1,5 @@
 """One-time extraction: pulls the specific census characteristics needed for
-the Area Overview FSA layers (dwelling counts, dwelling structural type,
+the Fill Layers FSA layers (dwelling counts, dwelling structural type,
 median household income) for every Canadian FSA out of the ~645MB raw
 StatsCan Census Profile file, into a small CSV that actually gets committed
 to the repo.

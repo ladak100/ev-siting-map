@@ -10,19 +10,22 @@ this whenever a fresh export is manually placed in fuel-stations-data/
 (gitignored — ~1.7MB raw file, not committed).
 
 Every station in this export was already public/available (Access Code =
-"public", Status Code = "E") and Canada/Ontario-only, so the only filtering
-done here is Fuel Type Code == ELEC (drops LPG/CNG/HY entries) and the GGH bbox.
+"public", Status Code = "E"), so the only filtering done here is Fuel Type
+Code == ELEC (drops LPG/CNG/HY entries) and State == "ON" — using the CSV's
+own State field rather than bbox.py's rectangular bbox, since at Ontario's
+scale that padded rectangle covers parts of Quebec/Manitoba/the US too (see
+fetch_osm.py's comment on the same issue for OSM data).
 
 Charger type (L1/L2/DCFC) is NOT a single categorical field — a station can
-have more than one port type simultaneously (39 of 2860 GGH stations have
+have more than one port type simultaneously (79 of 4756 Ontario stations have
 both L2 and DCFC; 1 has both L1 and L2), so this writes independent
 has_l1/has_l2/has_dcfc booleans rather than a mutually-exclusive "level"
 string, matching how the sidebar filters them (independent checkboxes in the
 EV Chargers filter menu, not a radio choice). L1 is nearly nonexistent here —
-only 1 GGH station has any L1 ports — but it's cheap to expose for completeness.
+only 1 Ontario station has any L1 ports — but it's cheap to expose for completeness.
 
 network_group collapses any network with fewer than MIN_NETWORK_SIZE stations
-in the GGH into "Other", so the network filter menu shows ~9 options instead
+in Ontario into "Other", so the network filter menu shows ~9 options instead
 of ~28 (computed here rather than hardcoded, so it can't drift from the data).
 """
 
@@ -33,12 +36,28 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-from bbox import EAST, NORTH, SOUTH, WEST
-
 INPUT_PATH = Path(__file__).parent.parent / "fuel-stations-data" / "alt_fuel_stations (Jul 4 2026).csv"
 OUTPUT_PATH = Path(__file__).parent.parent / "public" / "data" / "ev_chargers.geojson"
 
 MIN_NETWORK_SIZE = 40
+
+# Manual corrections for stations where NRCan's own upstream Latitude/
+# Longitude are simply wrong (confirmed by comparing against the station's
+# own Street Address, not just a hunch) — NRCan's "Geocode Status" column
+# claims 'GPS' for these too, so there's no automatic signal in the CSV
+# itself to detect this; each entry here was found by a user report and
+# checked by hand. Keyed by the CSV's own stable 'ID' field, mapped to
+# (longitude, latitude) — same coordinate order as the GeoJSON output.
+#
+#   298651 "Loblaws Bayview Village - Toronto": NRCan's row has
+#   (43.63212, -79.35674) — a real coordinate, but on Centre Island /
+#   Toronto's harbourfront, ~15km from the station's own listed address
+#   (2877 Bayview Ave, M2K 2S3 — Bayview Village Shopping Centre, North
+#   York, at Bayview Ave & Sheppard Ave E). Corrected to that address's
+#   real location.
+COORDINATE_OVERRIDES: dict[str, tuple[float, float]] = {
+    "298651": (-79.3856, 43.7696),
+}
 
 
 def port_count(row: dict, field: str) -> int:
@@ -49,16 +68,12 @@ def port_count(row: dict, field: str) -> int:
         return 0
 
 
-def in_ggh_bbox(row: dict) -> bool:
-    try:
-        lat, lon = float(row["Latitude"]), float(row["Longitude"])
-    except (KeyError, ValueError):
-        return False
-    return WEST <= lon <= EAST and SOUTH <= lat <= NORTH
-
-
 def row_to_feature(row: dict, major_networks: set[str]) -> dict:
-    lat, lon = float(row["Latitude"]), float(row["Longitude"])
+    override = COORDINATE_OVERRIDES.get(row.get("ID") or "")
+    if override is not None:
+        lon, lat = override
+    else:
+        lat, lon = float(row["Latitude"]), float(row["Longitude"])
 
     l1 = port_count(row, "EV Level1 EVSE Num")
     l2 = port_count(row, "EV Level2 EVSE Num")
@@ -92,14 +107,14 @@ def main() -> None:
         reader = csv.DictReader(f)
         elec_rows = [row for row in reader if row.get("Fuel Type Code") == "ELEC"]
 
-    ggh_rows = [row for row in elec_rows if in_ggh_bbox(row)]
-    if not ggh_rows:
-        raise ValueError("Extracted zero EV chargers — check INPUT_PATH and bbox")
+    on_rows = [row for row in elec_rows if row.get("State") == "ON"]
+    if not on_rows:
+        raise ValueError("Extracted zero EV chargers — check INPUT_PATH and the State field")
 
-    network_counts = Counter(row.get("EV Network") or "Non-Networked" for row in ggh_rows)
+    network_counts = Counter(row.get("EV Network") or "Non-Networked" for row in on_rows)
     major_networks = {network for network, count in network_counts.items() if count >= MIN_NETWORK_SIZE}
 
-    features = [row_to_feature(row, major_networks) for row in ggh_rows]
+    features = [row_to_feature(row, major_networks) for row in on_rows]
     geojson = {"type": "FeatureCollection", "features": features}
 
     tmp_path = OUTPUT_PATH.with_suffix(".geojson.tmp")

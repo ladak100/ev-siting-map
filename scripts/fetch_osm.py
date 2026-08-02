@@ -12,8 +12,6 @@ from pathlib import Path
 
 import requests
 
-from bbox import EAST, NORTH, OVERPASS_BBOX, SOUTH, WEST
-
 OVERPASS_ENDPOINT = "https://overpass-api.de/api/interpreter"
 OUTPUT_PATH = Path(__file__).parent.parent / "public" / "data" / "gas_stations.geojson"
 
@@ -21,9 +19,17 @@ OUTPUT_PATH = Path(__file__).parent.parent / "public" / "data" / "gas_stations.g
 # "python-requests/x.x.x" User-Agent — a custom one clears it.
 HEADERS = {"User-Agent": "ev-siting-map-fetch-script/1.0"}
 
-QUERY = f"""
-[out:json][timeout:60][bbox:{OVERPASS_BBOX}];
-nwr[amenity=fuel];
+# Filtered against Ontario's real administrative boundary, NOT bbox.py's
+# rectangular bbox — that box is deliberately padded generous at the edges
+# (see bbox.py), and at Ontario's scale a padded rectangle covers large
+# chunks of Quebec, Manitoba, and the US (Michigan/Ohio/New York). A plain
+# [bbox:...] filter would pull in gas stations from all of those. This one
+# query (first attempt, no bbox pre-filter needed) came back with exactly the
+# expected count for real Ontario coverage.
+QUERY = """
+[out:json][timeout:120];
+area["ISO3166-2"="CA-ON"]->.on;
+nwr[amenity=fuel](area.on);
 out center;
 """
 
@@ -36,12 +42,6 @@ def element_to_point_feature(el: dict) -> dict | None:
         if not center:
             return None
         lon, lat = center["lon"], center["lat"]
-
-    # Overpass's own [bbox:...] filter includes anything with at least one
-    # node inside it, which can admit a way/relation whose centroid actually
-    # falls just outside — re-check precisely against our real bbox.
-    if not (WEST <= lon <= EAST and SOUTH <= lat <= NORTH):
-        return None
 
     tags = el.get("tags", {})
     return {
@@ -57,7 +57,7 @@ def element_to_point_feature(el: dict) -> dict | None:
 
 
 def main() -> None:
-    response = requests.post(OVERPASS_ENDPOINT, data={"data": QUERY}, headers=HEADERS, timeout=90)
+    response = requests.post(OVERPASS_ENDPOINT, data={"data": QUERY}, headers=HEADERS, timeout=150)
     response.raise_for_status()
     elements = response.json()["elements"]
 

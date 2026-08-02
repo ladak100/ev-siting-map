@@ -1,4 +1,4 @@
-"""Builds the "split set" that powers the Custom Area Overview layer: the full
+"""Builds the "split set" that powers the Custom Fill Layers layer: the full
 geometric intersection of Load Capacity feeder polygons and EV Adoption FSA
 polygons, so a single tiled layer can carry both datasets' properties on the
 same geometry.
@@ -13,10 +13,10 @@ its own small polygon ONCE here, at build time, stamped with both parents'
 properties. At runtime, Custom's sliders become a plain property filter
 expression on this one precomputed layer — no client-side geometry math at all.
 
-Prototype run against the real GGH data (43,309 feeders x 334 FSAs, bbox-
-pruned via STRtree so this is NOT a naive 43,309*334 comparison): ~22s,
-48,964 output features, 11.5MB once tiled — same ballpark as Load Capacity's
-own pmtiles.
+Run against the real Ontario-wide data (132,223 feeders x 520 FSAs, bbox-
+pruned via STRtree so this is NOT a naive 132,223*520 comparison): 142,816
+output features, ~34MB once tiled — same ballpark as Load Capacity's own
+pmtiles.
 
 Reads build/load_capacity_raw.geojson and build/ev_adoption_raw.geojson (both
 already produced as build inputs by fetch_load_capacity_raw.py and
@@ -50,16 +50,16 @@ FSA_PROPS = ("CFSAUID", "ev_adoption_pct", "total_ev", "houses_pct", "median_inc
 # range they're supposed to represent.
 HISTOGRAM_BOUNDS = {
     "capacity": (0, 180),
-    "ev_adoption_pct": (0, 27),
-    "total_ev": (0, 3400),
+    "ev_adoption_pct": (0, 43),
+    "total_ev": (0, 3600),
     "houses_pct": (0, 100),
-    "median_income": (50000, 200000),
+    "median_income": (40000, 200000),
 }
 HISTOGRAM_BINS = 24
 
 
 def load_valid_geometry(geometry: dict):
-    """Real GGH feeder/FSA geometry has occasionally-invalid rings (self-
+    """Real Ontario-wide feeder/FSA geometry has occasionally-invalid rings (self-
     touching boundaries etc.) that make shapely's intersection raise a
     TopologyException. buffer(0) is the standard shapely trick to rebuild a
     valid geometry with the same shape — confirmed necessary against the real

@@ -34,11 +34,39 @@ export function initSidebarToggle(): void {
   setCollapsed(window.innerWidth < MOBILE_BREAKPOINT_PX);
 }
 
+// A layer id may have one or more companion map layers sharing the same
+// underlying source, toggled together since they're the same conceptual
+// layer to the user: `<layerId>-labels` (e.g. ldc-territories-labels),
+// `<layerId>-casing` (a dark border rendered under the main line, e.g.
+// aadt-casing), or `<layerId>-zone` (a wide translucent line rendered under
+// everything else, e.g. zevip-corridor-zone). Shared by both the checkbox
+// wiring below and the radio-group wiring further down.
+//
+// `-toronto`/`-toronto-casing` are a special case of the same mechanism:
+// aadt-toronto and aadt-toronto-casing are a genuinely SEPARATE dataset
+// (Toronto's own local street counts, see scripts/fetch_aadt_toronto.py),
+// not a visual sub-part of the aadt layer the way a casing/label normally
+// is — but riding along as companions of 'aadt' is exactly how the two
+// datasets end up toggled by a single "Traffic Volume (AADT)" control
+// instead of a second Road Layers radio option.
+const COMPANION_SUFFIXES = ['-labels', '-casing', '-zone', '-toronto', '-toronto-casing'];
+
+function setLayerAndCompanionsVisible(map: MapLibreMap, layerId: string, visible: boolean): void {
+  const visibility = visible ? 'visible' : 'none';
+  map.setLayoutProperty(layerId, 'visibility', visibility);
+  for (const suffix of COMPANION_SUFFIXES) {
+    const companionId = `${layerId}${suffix}`;
+    if (map.getLayer(companionId)) {
+      map.setLayoutProperty(companionId, 'visibility', visibility);
+    }
+  }
+}
+
 // Every active layer gets its own titled block in the floating #map-legend
 // card (see index.html), independently shown/hidden based on that layer's
 // own visibility — so e.g. LDC boundaries + EV chargers + Gas Stations can
 // all be listed together whenever their checkboxes are checked, not just
-// the single active Area Overview choice.
+// the single active Fill Layers choice.
 function setLegendBlockVisible(layerId: string, visible: boolean): void {
   const block = document.getElementById(`legend-${layerId}`);
   // Explicit 'block', not '' — the CSS default is `display: none` (to avoid
@@ -85,20 +113,16 @@ export function initLegendToggle(): void {
 
 /**
  * Wires every sidebar checkbox to its map layer's visibility. Scoped to
- * type="checkbox" only — the mutually-exclusive "Area Overview" layers use
- * type="radio" instead (see initAreaOverviewRadios) and share the
+ * type="checkbox" only — the mutually-exclusive "Fill Layers" and "Road
+ * Layers" groups use type="radio" instead (see initRadioGroup) and share the
  * data-layer-id attribute, so this selector must not pick them up too.
  *
  * A checkbox may have a companion legend block, `#legend-<layerId>`
- * (e.g. #legend-load-capacity), shown/hidden alongside it. It may also have
- * one or more companion map layers — `<layerId>-labels` (e.g.
- * ldc-territories-labels) or `<layerId>-casing` (e.g. aadt-casing, the dark
- * border rendered under the aadt line) — toggled together since they're the
- * same conceptual layer to the user.
+ * (e.g. #legend-load-capacity), shown/hidden alongside it, plus whatever
+ * companion map layers setLayerAndCompanionsVisible already handles.
  */
 export function initLayerCheckboxes(map: MapLibreMap): void {
   const checkboxes = document.querySelectorAll<HTMLInputElement>('input[type="checkbox"][data-layer-id]');
-  const COMPANION_SUFFIXES = ['-labels', '-casing'];
 
   checkboxes.forEach((checkbox) => {
     const layerId = checkbox.dataset.layerId;
@@ -110,23 +134,12 @@ export function initLayerCheckboxes(map: MapLibreMap): void {
       return;
     }
 
-    const companionLayerIds = COMPANION_SUFFIXES.map((suffix) => `${layerId}${suffix}`);
-    const setLayerVisibility = (visible: boolean) => {
-      const visibility = visible ? 'visible' : 'none';
-      map.setLayoutProperty(layerId, 'visibility', visibility);
-      for (const companionId of companionLayerIds) {
-        if (map.getLayer(companionId)) {
-          map.setLayoutProperty(companionId, 'visibility', visibility);
-        }
-      }
-    };
-
     checkbox.checked = config.defaultVisible;
     setLegendBlockVisible(layerId, config.defaultVisible);
     if (layerId === 'ev-chargers') setFilterToggleEnabled('ev-charger-filter-toggle', 'ev-charger-filter-panel', config.defaultVisible);
 
     checkbox.addEventListener('change', () => {
-      setLayerVisibility(checkbox.checked);
+      setLayerAndCompanionsVisible(map, layerId, checkbox.checked);
       setLegendBlockVisible(layerId, checkbox.checked);
       if (layerId === 'ev-chargers') setFilterToggleEnabled('ev-charger-filter-toggle', 'ev-charger-filter-panel', checkbox.checked);
     });
@@ -134,25 +147,23 @@ export function initLayerCheckboxes(map: MapLibreMap): void {
 }
 
 /**
- * The "Area Overview" fieldset (load-capacity, the ev-adoption layers,
- * household-income) are all semi-transparent polygon-fill choropleths —
- * showing more than one at once blends into unreadable colors, and they're
- * drawn at incompatible granularities (feeders vs. FSAs) anyway. So unlike
- * other layers, these are wired as a single radio group: exactly one (or
- * none) visible.
+ * Shared by both radio groups below (Fill Layers, Road Layers): wires every
+ * `input[type="radio"][name="{groupName}"]` so exactly one (or none, via a
+ * "None" option with no data-layer-id) of `layerIds` is visible at a time,
+ * including each one's companion layers/legend block. `onSelectionChange`
+ * lets a specific group react further (e.g. Fill Layers' Custom filter
+ * toggle).
  */
-const AREA_OVERVIEW_LAYER_IDS = ['load-capacity', 'ev-adoption-pct', 'ev-adoption-total', 'ev-adoption-housing', 'household-income', 'custom-overlay'];
-
-export function initAreaOverviewRadios(map: MapLibreMap): void {
-  const radios = document.querySelectorAll<HTMLInputElement>('input[type="radio"][name="area-overview"]');
+function initRadioGroup(map: MapLibreMap, groupName: string, layerIds: string[], onSelectionChange?: (selectedLayerId: string | undefined) => void): void {
+  const radios = document.querySelectorAll<HTMLInputElement>(`input[type="radio"][name="${groupName}"]`);
 
   function applySelection(selectedLayerId: string | undefined): void {
-    for (const layerId of AREA_OVERVIEW_LAYER_IDS) {
+    for (const layerId of layerIds) {
       const visible = layerId === selectedLayerId;
-      map.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none');
+      setLayerAndCompanionsVisible(map, layerId, visible);
       setLegendBlockVisible(layerId, visible);
     }
-    setFilterToggleEnabled('custom-overlay-filter-toggle', 'custom-overlay-filter-panel', selectedLayerId === 'custom-overlay');
+    onSelectionChange?.(selectedLayerId);
   }
 
   radios.forEach((radio) => {
@@ -161,12 +172,40 @@ export function initAreaOverviewRadios(map: MapLibreMap): void {
     });
   });
 
-  const initial = document.querySelector<HTMLInputElement>('input[type="radio"][name="area-overview"]:checked');
+  const initial = document.querySelector<HTMLInputElement>(`input[type="radio"][name="${groupName}"]:checked`);
   applySelection(initial?.dataset.layerId);
 }
 
+/**
+ * The "Fill Layers" fieldset (load-capacity, the ev-adoption layers,
+ * household-income) are all semi-transparent polygon-fill choropleths —
+ * showing more than one at once blends into unreadable colors, and they're
+ * drawn at incompatible granularities (feeders vs. FSAs) anyway. So unlike
+ * other layers, these are wired as a single radio group: exactly one (or
+ * none) visible.
+ */
+const FILL_LAYER_IDS = ['load-capacity', 'ev-adoption-pct', 'ev-adoption-total', 'ev-adoption-housing', 'household-income', 'custom-overlay'];
+
+export function initFillLayerRadios(map: MapLibreMap): void {
+  initRadioGroup(map, 'fill-layers', FILL_LAYER_IDS, (selectedLayerId) => {
+    setFilterToggleEnabled('custom-overlay-filter-toggle', 'custom-overlay-filter-panel', selectedLayerId === 'custom-overlay');
+  });
+}
+
+/**
+ * The "Road Layers" fieldset (AADT, ZEVIP Corridor Score) are both full-
+ * network road-line overlays with their own busy color ramps — showing both
+ * at once would be visually competing, so like Fill Layers these are a
+ * single radio group instead of independent checkboxes.
+ */
+const ROAD_LAYER_IDS = ['aadt', 'zevip-corridor'];
+
+export function initRoadLayerRadios(map: MapLibreMap): void {
+  initRadioGroup(map, 'road-layers', ROAD_LAYER_IDS);
+}
+
 // A filter accordion only means anything while its own layer is actually
-// showing — EV Chargers unchecked, or a different Area Overview radio
+// showing — EV Chargers unchecked, or a different Fill Layers radio
 // picked, both leave the filter adjusting a layer that isn't drawn. Disabling
 // the button (rather than leaving it clickable but inert) makes that
 // dependency visible instead of letting the user fiddle with filters for a

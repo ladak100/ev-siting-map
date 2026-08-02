@@ -48,17 +48,19 @@ jobs:
       # LDC territories are only ~25 features but dense enough polygons to
       # come to 4.93MB as plain GeoJSON — tiled (like Load Capacity and
       # Parking Lots below) rather than baked to public/data, both for the
-      # ~9.7x size win and because --clip-bounding-box gives an exact GGH
-      # bbox clip for free (the fetch script's own spatial filter only
-      # guarantees each feature *intersects* the bbox, not that it's clipped
-      # to it).
+      # ~9.7x size win and because --clip-bounding-box gives an exact bbox
+      # clip for free (the fetch script's own spatial filter only guarantees
+      # each feature *intersects* the bbox, not that it's clipped to it).
+      # NOTE: the bbox below is duplicated from scripts/bbox.py — tippecanoe
+      # is a CLI tool here, not Python, so it can't import that file. Keep
+      # both in sync by hand if the bbox ever changes.
       - name: Fetch + tile LDC Territories (CCIM)
         id: fetch_ccim
         continue-on-error: true
         run: |
           python scripts/fetch_ccim.py
           ./tippecanoe-bin/tippecanoe -f -o public/tiles/ldc_territories.pmtiles \
-            -l ldc_territories -zg --clip-bounding-box=-80.5,43.0,-78.0,45.0 \
+            -l ldc_territories -zg --clip-bounding-box=-95.5,41.4,-74.0,57.0 \
             build/ldc_territories_raw.geojson
 
       # Reads scripts/data/census_dwellings_by_fsa.csv (committed — built once
@@ -66,7 +68,7 @@ jobs:
       # which is NOT run here) and joins it against CFSA boundaries + all
       # historical Ontario MTO EV-by-FSA quarters. Also carries median
       # household income from that same census extract, so this one script
-      # covers 4 Area Overview layers (EV adoption %, total EVs, housing %,
+      # covers 4 Fill Layers layers (EV adoption %, total EVs, housing %,
       # household income). MTO releases quarterly; running this monthly is
       # harmless, same reasoning as CCIM above.
       #
@@ -82,7 +84,7 @@ jobs:
         run: |
           python scripts/fetch_ev_adoption.py
           ./tippecanoe-bin/tippecanoe -f -o public/tiles/ev_adoption.pmtiles \
-            -l ev_adoption -zg --clip-bounding-box=-80.5,43.0,-78.0,45.0 \
+            -l ev_adoption -zg --clip-bounding-box=-95.5,41.4,-74.0,57.0 \
             build/ev_adoption_raw.geojson
 
       - name: Fetch + tile Load Capacity (CCIM)
@@ -94,7 +96,7 @@ jobs:
             -l load_capacity -zg --drop-densest-as-needed --extend-zooms-if-still-dropping \
             build/load_capacity_raw.geojson
 
-      # Powers the "Custom" Area Overview option: the full geometric
+      # Powers the "Custom" Fill Layers option: the full geometric
       # intersection of feeder polygons (Load Capacity) and FSA polygons (EV
       # Adoption/Income), so Custom's sliders can filter on both datasets'
       # properties via one plain property filter, with no client-side overlay
@@ -109,11 +111,11 @@ jobs:
           python scripts/build_custom_overlay.py
           ./tippecanoe-bin/tippecanoe -f -o public/tiles/custom_overlay.pmtiles \
             -l custom_overlay -zg --drop-densest-as-needed --extend-zooms-if-still-dropping \
-            --clip-bounding-box=-80.5,43.0,-78.0,45.0 \
+            --clip-bounding-box=-95.5,41.4,-74.0,57.0 \
             build/custom_overlay_raw.geojson
 
-      # Same reasoning as Load Capacity: ~59k GGH-wide parking polygons is too
-      # big to bake as plain GeoJSON (~26MB raw), so it's tiled too. Used to be
+      # Same reasoning as Load Capacity: ~91k Ontario-wide parking polygons is
+      # too big to bake as plain GeoJSON, so it's tiled too. Used to be
       # a live per-viewport Overpass query — baking it dropped per-session
       # load time from "shared public Overpass server" to "static tiles off
       # our own CDN."
@@ -130,6 +132,21 @@ jobs:
       # doc originally planned to hit is dead (single null record). Re-run
       # scripts/extract_ev_chargers.py manually against a fresh NRCan export
       # when needed, same one-time/manual pattern as the census extraction.
+
+      # Unlike MTO's aadt.geojson (a frozen 2019 archive, deliberately
+      # manual-only — see fetch_aadt.py), Toronto's own SVC short-term count
+      # dataset is actively growing, so this one IS automated here. Renders
+      # as a companion of the 'aadt' layer via controls.ts's '-toronto'
+      # suffix, not a separate Road Layers choice — see fetch_aadt_toronto.py
+      # for the full FHWA-style AADT-estimation methodology.
+      - name: Fetch + tile Toronto AADT (City SVC counts)
+        id: fetch_aadt_toronto
+        continue-on-error: true
+        run: |
+          python scripts/fetch_aadt_toronto.py
+          ./tippecanoe-bin/tippecanoe -f -o public/tiles/aadt_toronto.pmtiles \
+            -l aadt_toronto -zg --drop-densest-as-needed --extend-zooms-if-still-dropping \
+            build/aadt_toronto_raw.geojson
 
       - name: Fetch gas stations (OSM)
         id: fetch_osm
@@ -158,5 +175,6 @@ jobs:
           [ "${{ steps.fetch_load_capacity.outcome }}" = "failure" ] && echo "::warning::fetch_load_capacity_raw.py/tippecanoe failed — load_capacity tiles not refreshed this run" && failed=1
           [ "${{ steps.build_custom_overlay.outcome }}" = "failure" ] && echo "::warning::build_custom_overlay.py/tippecanoe failed — custom_overlay tiles not refreshed this run" && failed=1
           [ "${{ steps.fetch_parking_lots.outcome }}" = "failure" ] && echo "::warning::fetch_parking_lots_raw.py/tippecanoe failed — parking_lots tiles not refreshed this run" && failed=1
+          [ "${{ steps.fetch_aadt_toronto.outcome }}" = "failure" ] && echo "::warning::fetch_aadt_toronto.py/tippecanoe failed — aadt_toronto tiles not refreshed this run" && failed=1
           [ "${{ steps.fetch_osm.outcome }}" = "failure" ] && echo "::warning::fetch_osm.py failed — gas_stations data not refreshed this run" && failed=1
           exit $failed
